@@ -1,87 +1,96 @@
 # Ambient Audio System for VRChat
 
-This package delivers a robust ambient audio solution for VRChat worlds. It automatically switches between outdoor and indoor soundtracks based on defined trigger volumes, with smooth cross-fades and extensive customization.
+A flexible ambient audio tool for VRChat worlds, featuring:
+
+- **Indoor/Outdoor Detection**: Switch ambient tracks when players enter or exit defined zones.
+- **Trigger & Polling Modes**: Use collider-based triggers or optional position polling for unreliable physics.
+- **Smooth Cross‐Fades**: Configurable fade duration and non-linear fade curves.
+- **Playback Control**: Random or sequential clip selection, loop intervals, and one‐time intro clips.
+- **Volume & Spatial Settings**: Master, inside, and outside volume sliders; 2D/3D spatial blend.
+- **Debug & Visualization**: Console logging and editor gizmos to assist setup and troubleshooting.
 
 ---
 
-## Overview
+## Quick Start
 
-- **Automatic Detection**: Identifies when the local player enters or exits interior zones.
-- **Cross-Fade Support**: Seamlessly transitions between ambient clip sets.
-- **Playback Modes**: Choose between random selection or sequential order.
-- **Configurable Loop Interval**: Add a delay between ambient loops when needed.
-- **Intro Clip & Start Delay**: Optionally play a one-time introduction before loops begin.
-- **Volume Controls**: Adjust master, inside, and outside volumes independently.
-- **Spatial Blend**: Fine-tune 2D (UI) vs. 3D (world) audio mixing.
-- **Custom Fade Curves**: Define non-linear fade shapes with an AnimationCurve.
-- **Debug & Visualization**: Enable logging and show zone boundaries in the editor.
-
----
-
-## Installation & Setup
-
-1. **Ambient Audio Manager**
-   - Create an empty GameObject under your `headAttachmentHandler`.
-   - Add two child GameObjects, each with an `AudioSource` component (call them **SourceA** and **SourceB**).
+1. **Add the Manager to Your Scene**
+   - In your **world** project, create an empty GameObject (e.g. `AmbientAudioManager`) under any non-avatar root.
+   - Add two child GameObjects named `SourceA` and `SourceB`, each with an **AudioSource** component.
    - Attach `AmbientAudioManager.cs` to the parent object.
-   - In the Inspector, configure:
-     - **Source A** / **Source B** references.
-     - **Outside Clips[]**: array of outdoor ambient tracks.
-     - **Inside Clips[]**: default indoor tracks.
-     - **Playback Settings**: mode (`Random`/`Sequential`), loop interval.
-     - **Volume Settings**: `masterVolume`, `outsideVolume`, `insideVolume`.
-     - **Spatial Blend** slider (0–1).
-     - **Fade Duration** and **Fade Curve**.
-     - **Start Delay** and **Intro Clip** (optional).
-     - **Enable Debug** and **Show Zone Gizmos** flags.
+   - In the Inspector, assign **Source A** and **Source B** AudioSources.
 
-2. **Audio Zone Volumes**
-   - For each room or interior area, place a collider object with **Is Trigger** enabled.
-   - Attach `AudioZone.cs` to each collider.
-   - In the zone’s Inspector, assign the **AmbientAudioManager** reference.
+2. **Configure Clip Lists**
+   - **Outside Clips[]**: clips for outdoor ambience.
+   - **Inside Clips[]**: default clips for interiors.
 
-3. **Testing in Editor**
-   - Enter Play Mode in Unity.
-   - Move the player into and out of each zone to confirm cross-fades and clip behavior.
+3. **Set Playback Options**
+   - Choose **Playback Mode**: `Random` or `Sequential`.
+   - Optionally set a **Clip Loop Interval** to insert gaps between loops.
 
-4. **Deployment**
-   - Build and publish your world to VRChat.
-   - Verify that ambient changes occur in the live environment.
+4. **Adjust Volume & Spatial**
+   - **Master Volume**: global volume multiplier.
+   - **Outside Volume** / **Inside Volume**: relative levels for each mode.
+   - **Spatial Blend** (0 = 2D, 1 = 3D).
+
+5. **Cross-Fade & Intro**
+   - **Fade Duration**: seconds to cross-fade.
+   - **Fade Curve**: define custom easing.
+   - **Start Delay** / **Intro Clip**: one-time intro before looping.
+
+6. **Zone Detection**
+   - **Trigger Mode** (default):
+     1. Create a GameObject with a collider (set **Is Trigger**).
+     2. Attach `AudioZone.cs` and drag the manager into its **Manager** slot.
+   - **Polling Mode** (fallback):
+     1. Enable **Zone Polling** in the manager.
+     2. Set a **Polling Interval** and drag each zone’s collider into **Zone Colliders[]**.
+
+7. **Enable Debug & Gizmos**
+   - Check **Enable Debug** to log enter/exit and fade events.
+   - Check **Show Zone Gizmos** to draw zone wireframes in the Editor.
+
+8. **Publish & Test**
+   - Build & Publish your world with the VRChat SDK.
+   - In VRChat, walk into and out of your zones to confirm ambient transitions.
 
 ---
 
-## Customization Guide
+## Detailed Settings
 
-| Setting              | Description                                                      |
-|----------------------|------------------------------------------------------------------|
-| **Playback Mode**    | `Random` or `Sequential` order of clips.                         |
-| **Loop Interval**    | Delay (seconds) between end of one clip and start of next.      |
-| **Master Volume**    | Global volume multiplier (0–1).                                  |
-| **Outside Volume**   | Volume level for outdoor ambience (0–1).                        |
-| **Inside Volume**    | Volume level for indoor ambience (0–1).                         |
-| **Spatial Blend**    | 0 = stereo UI; 1 = fully 3D world audio.                        |
-| **Fade Duration**    | Duration (seconds) of cross-fade.                               |
-| **Fade Curve**       | AnimationCurve for non-linear fade shapes.                      |
-| **Start Delay**      | Seconds to wait before initial playback.                        |
-| **Intro Clip**       | One-time introductory clip before ambient loops.                |
-| **Enable Debug**     | Toggle console logging of events and fade progress.             |
-| **Show Zone Gizmos** | Display green wireframe boxes for each zone in the editor.       |
+| Section              | Field                 | Description                                          |
+|----------------------|-----------------------|------------------------------------------------------|
+| **Audio Sources**    | Source A / Source B   | AudioSources used for cross-fades.                   |
+| **Clips**            | Outside / Inside      | Arrays of `AudioClip` for each mode.                 |
+| **Playback**         | Playback Mode         | `Random` or `Sequential` selection.                  |
+|                      | Clip Loop Interval    | Delay between loops if > 0 (disables auto-loop).     |
+| **Volume**           | Master Volume         | Global multiplier (0–1).                             |
+|                      | Outside Volume        | Volume for outdoor ambience (0–1).                   |
+|                      | Inside Volume         | Volume for indoor ambience (0–1).                    |
+| **Spatial**          | Spatial Blend         | 0 = 2D (UI); 1 = 3D (world).                         |
+| **Fade**             | Fade Duration         | Seconds to cross-fade.                               |
+|                      | Fade Curve            | `AnimationCurve` for non-linear fade.                |
+| **Intro**            | Start Delay           | Wait before initial playback.                        |
+|                      | Intro Clip            | One-time clip before looping starts.                 |
+| **Zone Polling**     | Enable Polling        | Overrides triggers with position-based checks.       |
+|                      | Polling Interval      | Seconds between each position check.                 |
+|                      | Zone Colliders[]      | Colliders to test for position polling.              |
+| **Debug & Viz**      | Enable Debug          | Log enter/exit and fade steps.                       |
+|                      | Show Zone Gizmos      | Draw zone bounds in the Scene view.                  |
 
 ---
 
 ## Troubleshooting
 
-- **No Sound**: Ensure `Play On Awake` is disabled and clips are assigned correctly.
-- **Trigger Not Detected**: Verify the collider is set to **Is Trigger** and has `AudioZone` attached.
-- **Spawn Inside Zone**: Zones perform a spawn check; ensure your player’s headAttachmentHandler is correctly referenced.
-- **Stuttering Fade**: Increase the `FADE_STEPS` constant in `AmbientAudioManager.cs` for finer resolution.
+- **No inside/outside switch**: enable Debug and watch for `NotifyEnter` / `NotifyExit` in logs.
+- **Trigger not firing**: ensure colliders are on the **Default** layer with **Is Trigger** checked.
+- **Player never exits**: colliders must span from ground to head height so the player’s capsule leaves fully.
+- **No audio at all**: verify clip arrays are non-empty and volumes are above zero.
+- **Location-based audio still stuck**: use polling mode with properly assigned colliders.
 
 ---
 
-## Support & Contributions
+## Contribution & License
 
-If you encounter issues or have feature suggestions, please open an issue or submit a pull request on the repository. Provide clear reproduction steps and configuration details.
+Contributions are welcome. Please fork, commit, and open a pull request. Include clear descriptions and test steps.
 
----
-
-**End of README**
+This project is released under the MIT License. See [LICENSE](LICENSE) for details.
