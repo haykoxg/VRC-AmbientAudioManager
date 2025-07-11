@@ -20,7 +20,7 @@ public class AmbientAudioManager : UdonSharpBehaviour
     [Header("Playback Settings")]
     [Tooltip("Random: choose clips randomly. Sequential: play in order.")]
     [SerializeField] private PlayMode playOrder = PlayMode.Random;
-    [Tooltip("Seconds to wait between end of one clip and start of next (if >0, disables auto-loop).")]
+    [Tooltip("Seconds to wait between end of one clip and start of next (if >0, disables auto-loop)." )]
     [SerializeField] private float clipLoopInterval = 0f;
 
     [Header("Volume Settings")]
@@ -29,7 +29,7 @@ public class AmbientAudioManager : UdonSharpBehaviour
     [Range(0f,1f)][SerializeField] private float insideVolume  = 1f;
 
     [Header("Spatial")]
-    [Range(0f,1f), Tooltip("0 = 2D, 1 = fully 3D")]  
+    [Range(0f,1f), Tooltip("0 = 2D, 1 = fully 3D")]
     [SerializeField] private float spatialBlend = 0f;
 
     [Header("Fade Settings")]
@@ -43,6 +43,14 @@ public class AmbientAudioManager : UdonSharpBehaviour
     [SerializeField] private float startDelay = 0f;
     [Tooltip("One-off intro clip before ambient loops.")]
     [SerializeField] private AudioClip introClip;
+
+    [Header("Zone Polling (fallback)")]
+    [Tooltip("If true, use position-based zone detection instead of trigger events.")]
+    [SerializeField] private bool enablePositionPolling = false;
+    [Tooltip("Time between position polls (seconds).")]
+    [SerializeField] private float pollingInterval = 0.5f;
+    [Tooltip("Collider list defining inside volumes for polling mode.")]
+    [SerializeField] private Collider[] zoneColliders;
 
     [Header("Debug & Visualization")]
     [SerializeField] private bool enableDebug     = false;
@@ -60,6 +68,10 @@ public class AmbientAudioManager : UdonSharpBehaviour
     private AudioClip[] lastClips;
     private bool        lastStateInside;
 
+    // for position polling
+    private bool lastInsideState = false;
+    private float pollingTimer = 0f;
+
     // sequence indices
     private int outsideIndex = 0;
     private int insideIndex  = 0;
@@ -70,6 +82,40 @@ public class AmbientAudioManager : UdonSharpBehaviour
             SendCustomEventDelayedSeconds(nameof(StartIntro), startDelay);
         else
             StartIntro();
+    }
+
+    void Update()
+    {
+        if (!enablePositionPolling) return;
+        pollingTimer += Time.deltaTime;
+        if (pollingTimer < pollingInterval) return;
+        pollingTimer = 0f;
+
+        Vector3 pos = Networking.LocalPlayer.GetPosition();
+        bool isInside = false;
+        if (zoneColliders != null)
+        {
+            foreach (var col in zoneColliders)
+            {
+                if (col != null && col.bounds.Contains(pos))
+                {
+                    isInside = true;
+                    break;
+                }
+            }
+        }
+
+        if (isInside && !lastInsideState)
+        {
+            if (enableDebug) Debug.Log("[AmbientAudioManager] Poll: Enter");
+            NotifyInside();
+        }
+        else if (!isInside && lastInsideState)
+        {
+            if (enableDebug) Debug.Log("[AmbientAudioManager] Poll: Exit");
+            NotifyOutside();
+        }
+        lastInsideState = isInside;
     }
 
     public void StartIntro()
@@ -96,6 +142,7 @@ public class AmbientAudioManager : UdonSharpBehaviour
 
     public void NotifyEnter()
     {
+        if (enablePositionPolling) return;
         insideCount++;
         if (enableDebug) Debug.Log($"[AmbientAudioManager] NotifyEnter: count={insideCount}");
         if (insideCount == 1)
@@ -104,6 +151,7 @@ public class AmbientAudioManager : UdonSharpBehaviour
 
     public void NotifyExit()
     {
+        if (enablePositionPolling) return;
         insideCount = Mathf.Max(insideCount - 1, 0);
         if (enableDebug) Debug.Log($"[AmbientAudioManager] NotifyExit: count={insideCount}");
         if (insideCount == 0)
