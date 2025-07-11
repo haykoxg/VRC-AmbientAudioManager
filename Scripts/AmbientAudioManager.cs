@@ -1,20 +1,4 @@
-﻿/*
-    Ambient Audio System (UdonSharp)
-    =================================
-    Features:
-    - Automatic inside/outside detection via trigger volumes
-    - Cross-fade between ambient clip sets
-    - Playback modes: Random or Sequential
-    - Clip loop interval between loops
-    - Intro clip and start delay
-    - Master, inside, and outside volume sliders
-    - Spatial blend control
-    - Cross-fade curves
-    - Debug logging toggle
-    - Zone gizmo visualization toggle
-*/
-
-using UdonSharp;
+﻿using UdonSharp;
 using UnityEngine;
 using VRC.Udon;
 using VRC.SDKBase;
@@ -68,14 +52,15 @@ public class AmbientAudioManager : UdonSharpBehaviour
     private int   insideCount     = 0;
     private bool  useSourceA      = true;
     private float targetVolume    = 0f;
+    private float previousVolume  = 0f;      // holds volume of outgoing source
     private float fadeElapsed     = 0f;
     private float fadeStepTime    = 0f;
     private const int FADE_STEPS  = 20;
 
     private AudioClip[] lastClips;
-    private float       lastVolume;
     private bool        lastStateInside;
 
+    // sequence indices
     private int outsideIndex = 0;
     private int insideIndex  = 0;
 
@@ -93,9 +78,10 @@ public class AmbientAudioManager : UdonSharpBehaviour
 
         if (introClip != null)
         {
+            previousVolume = outsideVolume * masterVolume;
             sourceA.clip         = introClip;
             sourceA.loop         = false;
-            sourceA.volume       = outsideVolume * masterVolume;
+            sourceA.volume       = previousVolume;
             sourceA.spatialBlend = spatialBlend;
             sourceA.Play();
 
@@ -111,15 +97,17 @@ public class AmbientAudioManager : UdonSharpBehaviour
     public void NotifyEnter()
     {
         insideCount++;
-        if (enableDebug) Debug.Log($"[AmbientAudioManager] Enter -> {insideCount}");
-        if (insideCount == 1) NotifyInside();
+        if (enableDebug) Debug.Log($"[AmbientAudioManager] NotifyEnter: count={insideCount}");
+        if (insideCount == 1)
+            NotifyInside();
     }
 
     public void NotifyExit()
     {
         insideCount = Mathf.Max(insideCount - 1, 0);
-        if (enableDebug) Debug.Log($"[AmbientAudioManager] Exit -> {insideCount}");
-        if (insideCount == 0) NotifyOutside();
+        if (enableDebug) Debug.Log($"[AmbientAudioManager] NotifyExit: count={insideCount}");
+        if (insideCount == 0)
+            NotifyOutside();
     }
 
     private void NotifyInside()
@@ -136,15 +124,17 @@ public class AmbientAudioManager : UdonSharpBehaviour
         CrossFadeTo(outsideClips, outsideVolume);
     }
 
-    private void CrossFadeTo(AudioClip[] clips, float maxVol)
+    private void CrossFadeTo(AudioClip[] clips, float newVol)
     {
-        lastClips  = clips;
-        lastVolume = maxVol;
+        // store old outgoing volume
+        previousVolume = targetVolume;
 
-        var incoming = useSourceA ? sourceA : sourceB;
-        var outgoing = useSourceA ? sourceB : sourceA;
+        // pick sources
+        AudioSource incoming = useSourceA ? sourceA : sourceB;
+        AudioSource outgoing = useSourceA ? sourceB : sourceA;
         useSourceA = !useSourceA;
 
+        // choose clip
         AudioClip chosen = null;
         if (clips != null && clips.Length > 0)
         {
@@ -166,13 +156,15 @@ public class AmbientAudioManager : UdonSharpBehaviour
             incoming.spatialBlend = spatialBlend;
             incoming.Play();
         }
-        else incoming.Stop();
+        else outgoing.Stop();
 
-        targetVolume  = maxVol * masterVolume;
-        fadeElapsed   = 0f;
-        fadeStepTime  = fadeDuration / FADE_STEPS;
+        // set new target volume
+        targetVolume   = newVol * masterVolume;
+        fadeElapsed    = 0f;
+        fadeStepTime   = fadeDuration / FADE_STEPS;
         SendCustomEventDelayedSeconds(nameof(FadeStep), fadeStepTime);
 
+        // manual loop scheduling
         if (clipLoopInterval > 0f && chosen != null)
         {
             float delay = chosen.length + clipLoopInterval;
@@ -185,13 +177,14 @@ public class AmbientAudioManager : UdonSharpBehaviour
         fadeElapsed += fadeStepTime;
         float t = fadeCurve.Evaluate(fadeElapsed / fadeDuration);
 
-        var fadingIn  = useSourceA ? sourceB : sourceA;
-        var fadingOut = useSourceA ? sourceA : sourceB;
+        AudioSource fadingIn  = useSourceA ? sourceB : sourceA;
+        AudioSource fadingOut = useSourceA ? sourceA : sourceB;
 
+        // fade in to new target, fade out from previousVolume
         fadingIn.volume  = t * targetVolume;
-        fadingOut.volume = (1f - t) * targetVolume;
+        fadingOut.volume = (1f - t) * previousVolume;
 
-        if (enableDebug) Debug.Log($"[AmbientAudioManager] FadeStep t={t}");
+        if (enableDebug) Debug.Log($"[AmbientAudioManager] Fade t={t}");
 
         if (fadeElapsed < fadeDuration)
             SendCustomEventDelayedSeconds(nameof(FadeStep), fadeStepTime);
@@ -202,11 +195,8 @@ public class AmbientAudioManager : UdonSharpBehaviour
     public void LoopAmbient()
     {
         if (enableDebug) Debug.Log("[AmbientAudioManager] LoopAmbient");
-        if ((lastStateInside && insideCount > 0) ||
-            (!lastStateInside && insideCount == 0))
-        {
-            CrossFadeTo(lastClips, lastVolume);
-        }
+        if ((lastStateInside && insideCount > 0) || (!lastStateInside && insideCount == 0))
+            CrossFadeTo(lastClips, lastStateInside ? insideVolume : outsideVolume);
     }
 
     public bool ShowGizmos() => showZoneGizmos;
